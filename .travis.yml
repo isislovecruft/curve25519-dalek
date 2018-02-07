@@ -1,9 +1,24 @@
 language: rust
 
+sudo: false
+
 rust:
   - stable
   - beta
   - nightly
+
+addons:
+  apt:
+    packages:
+      # The following packages are used for compiling a recent-enough version of kcov
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - cmake
+      - gcc
+      - binutils-dev
+      - libiberty-dev
+      - zlib1g-dev
 
 env:
   - TEST_COMMAND=test EXTRA_FLAGS='' FEATURES=''
@@ -47,6 +62,22 @@ matrix:
 
 script:
   - cargo $TEST_COMMAND --features="$FEATURES" $EXTRA_FLAGS
+
+after_success:
+  - |
+    wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+    tar xzf master.tar.gz &&
+    cd kcov-master &&
+    mkdir build &&
+    cd build &&
+    cmake .. &&
+    make &&
+    make install DESTDIR=../../kcov-build &&
+    cd ../.. &&
+    rm -rf kcov-master &&
+    for file in target/debug/curve25519_dalek-*[^\.d]; do mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
+    bash <(curl -s https://codecov.io/bash) &&
+    echo "Uploaded code coverage"
 
 notifications:
   slack:
