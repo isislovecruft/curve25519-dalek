@@ -1,5 +1,4 @@
 #![cfg_attr(all(feature = "alloc", not(feature = "std")), feature(alloc))]
-#![cfg_attr(feature = "nightly", feature(cfg_target_feature))]
 #![allow(unused_variables)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
