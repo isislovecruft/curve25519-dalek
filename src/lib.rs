@@ -62,6 +62,8 @@ extern crate bincode;
 #[cfg(feature = "serde")]
 extern crate serde;
 
+extern crate zeroize;
+
 // Internal macros. Must come first!
 #[macro_use]
 pub(crate) mod macros;
