@@ -47,24 +47,22 @@ harness = false
 rand_core = { version = "0.3.0", default-features = false }
 byteorder = { version = "^1.2.3", default-features = false, features = ["i128"] }
 digest = { version = "0.8", default-features = false }
-clear_on_drop = "=0.2.3"
 subtle = { version = "2", default-features = false }
 serde = { version = "1.0", optional = true }
 packed_simd = { version = "0.3.0", features = ["into_bits"], optional = true }
-zeroize = { version = "0.5.2", default-features = false }
+zeroize = { version = "0.6", default-features = false }
 
 [build-dependencies]
 rand_core = { version = "0.3.0", default-features = false }
 byteorder = { version = "^1.2.3", default-features = false, features = ["i128"] }
 digest = { version = "0.8", default-features = false }
-clear_on_drop = "=0.2.3"
 subtle = { version = "2", default-features = false }
 serde = { version = "1.0", optional = true }
 packed_simd = { version = "0.3.0", features = ["into_bits"], optional = true }
-zeroize = { version = "0.5.2", default-features = false }
+zeroize = { version = "0.6", default-features = false, features = ["zeroize_derive"] }
 
 [features]
-nightly = ["subtle/nightly", "clear_on_drop/nightly", "zeroize/nightly"]
+nightly = ["subtle/nightly", "zeroize/nightly"]
 default = ["std", "u64_backend"]
 std = ["alloc", "subtle/std", "rand_core/std"]
 alloc = []

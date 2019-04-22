@@ -14,6 +14,8 @@
 
 use core::borrow::Borrow;
 
+use zeroize::Zeroize;
+
 use edwards::EdwardsPoint;
 use scalar::Scalar;
 use traits::MultiscalarMul;
@@ -44,6 +46,19 @@ use prelude::*;
 /// [solution]: https://www.jstor.org/stable/2310929
 /// [problem]: https://www.jstor.org/stable/2312273
 pub struct Straus {}
+
+/// Private wrapper type for Scalar digits so that they are zeroize'd
+/// from memory on Drop.
+#[derive(Default, Zeroize)]
+struct ScalarDigitsVec(Vec<[i8; 64]>);
+
+impl Drop for ScalarDigitsVec {
+    fn drop(&mut self) {
+        for scalar_digits in self.0.iter_mut() {
+            scalar_digits.zeroize();
+        }
+    }
+}
 
 impl MultiscalarMul for Straus {
     type Point = EdwardsPoint;
@@ -106,8 +121,6 @@ impl MultiscalarMul for Straus {
         J: IntoIterator,
         J::Item: Borrow<EdwardsPoint>,
     {
-        use clear_on_drop::ClearOnDrop;
-
         use backend::serial::curve_models::ProjectiveNielsPoint;
         use window::LookupTable;
         use traits::Identity;
@@ -120,11 +133,10 @@ impl MultiscalarMul for Straus {
         // This puts the scalar digits into a heap-allocated Vec.
         // To ensure that these are erased, pass ownership of the Vec into a
         // ClearOnDrop wrapper.
-        let scalar_digits_vec: Vec<_> = scalars
+        let scalar_digits: ScalarDigitsVec = ScalarDigitsVec(scalars
             .into_iter()
             .map(|s| s.borrow().to_radix_16())
-            .collect();
-        let scalar_digits = ClearOnDrop::new(scalar_digits_vec);
+            .collect());
 
         let mut Q = EdwardsPoint::identity();
         for j in (0..64).rev() {

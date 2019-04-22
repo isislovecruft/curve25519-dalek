@@ -12,7 +12,7 @@
 
 use core::borrow::Borrow;
 
-use clear_on_drop::ClearOnDrop;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use backend::vector::{CachedPoint, ExtendedPoint};
 use edwards::EdwardsPoint;
@@ -33,6 +33,11 @@ use prelude::*;
 /// point representation on the fly.
 pub struct Straus {}
 
+/// Private wrapper type for Scalar digits so that they are zeroize'd
+/// from memory on Drop.
+#[derive(Default, Zeroize, ZeroizeOnDrop)]
+struct ScalarDigitsVec(Vec<[i8; 64]>);
+
 impl MultiscalarMul for Straus {
     type Point = EdwardsPoint;
 
@@ -50,12 +55,11 @@ impl MultiscalarMul for Straus {
             .map(|point| LookupTable::<CachedPoint>::from(point.borrow()))
             .collect();
 
-        let scalar_digits_vec: Vec<_> = scalars
+        // Ensure the scalar digits are also zeroize'd from memory on Drop
+        let scalar_digits: ScalarDigitsVec = ScalarDigitsVec(scalars
             .into_iter()
             .map(|s| s.borrow().to_radix_16())
-            .collect();
-        // Pass ownership to a ClearOnDrop wrapper
-        let scalar_digits = ClearOnDrop::new(scalar_digits_vec);
+            .collect());
 
         let mut Q = ExtendedPoint::identity();
         for j in (0..64).rev() {

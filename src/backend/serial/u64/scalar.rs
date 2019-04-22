@@ -40,6 +40,12 @@ impl IndexMut<usize> for Scalar52 {
     }
 }
 
+impl Default for Scalar52 {
+    fn default() -> Scalar52 {
+        Scalar52::zero()
+    }
+}
+
 /// u64 * u64 = u128 multiply helper
 #[inline(always)]
 fn m(x: u64, y: u64) -> u128 {

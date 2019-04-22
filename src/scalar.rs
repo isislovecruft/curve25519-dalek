@@ -510,6 +510,18 @@ impl Zeroize for Scalar {
     }
 }
 
+/// A private wrapper for calling zeroize on Drop on a vector of Scalars.
+#[derive(Zeroize)]
+struct ScalarVec(Vec<Scalar>);
+
+impl Drop for ScalarVec {
+    fn drop(&mut self) {
+        for scalar in self.0.iter_mut() {
+            scalar.zeroize();
+        }
+    }
+}
+
 impl Scalar {
     /// Return a `Scalar` chosen uniformly at random using a user-provided RNG.
     ///
@@ -746,18 +758,17 @@ impl Scalar {
         // externally, but there's no corresponding distinction for
         // field elements.
 
-        use clear_on_drop::ClearOnDrop;
-        use clear_on_drop::clear::ZeroSafe;
+        use zeroize::{DefaultIsZeroes, Zeroize, ZeroizeOnDrop};
+
         // Mark UnpackedScalars as zeroable.
-        unsafe impl ZeroSafe for UnpackedScalar {}
+        impl DefaultIsZeroes for UnpackedScalar {}
 
         let n = inputs.len();
         let one: UnpackedScalar = Scalar::one().unpack().to_montgomery();
 
         // Wrap the scratch storage in a ClearOnDrop to wipe it when
         // we pass out of scope.
-        let scratch_vec = vec![one; n];
-        let mut scratch = ClearOnDrop::new(scratch_vec);
+        let mut scratch = ScalarVec(vec![one; n]);
 
         // Keep an accumulator of all of the previous products
         let mut acc = Scalar::one().unpack().to_montgomery();

@@ -19,6 +19,8 @@ use subtle::ConditionallySelectable;
 use subtle::ConstantTimeEq;
 use subtle::Choice;
 
+use zeroize::DefaultIsZeroes;
+
 use traits::Identity;
 
 use edwards::EdwardsPoint;
@@ -40,22 +42,25 @@ use backend::serial::curve_models::AffineNielsPoint;
 #[derive(Copy, Clone)]
 pub struct LookupTable<T>(pub(crate) [T; 8]);
 
-use clear_on_drop::clear::ZeroSafe;
-
 /// This type isn't actually zeroable (all zero bytes are not valid
 /// points), but we want to be able to use `clear_on_drop` to erase slices
 /// of `LookupTable`.
 ///
-/// Since the `ZeroSafe` trait is only used by `clear_on_drop`, the only
+/// Since the `DefaultIsZeroes` trait is only used by `zeroize`, the only
 /// situation where this would be a problem is if code attempted to use
-/// a `ClearOnDrop` to erase a `LookupTable` and then used the table
+/// a wrapper type to erase a `LookupTable` and then used the table
 /// afterwards.
 ///
 /// Normally this is not a problem, since the table's storage is usually
 /// dropped too.
 ///
 /// XXX is this a good compromise?
-unsafe impl<T> ZeroSafe for LookupTable<T> {}
+impl<T> DefaultIsZeroes for LookupTable<T> 
+    where
+        T: Copy + Default,
+{
+
+}
 
 impl<T> LookupTable<T>
 where
