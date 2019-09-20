@@ -18,6 +18,9 @@ exclude = [
 ]
 build = "build.rs"
 
+cargo-features = ["namespaced-features"]
+namespaced-features = false
+
 [package.metadata.docs.rs]
 # Disabled for now since this is borked; tracking https://github.com/rust-lang/docs.rs/issues/302
 # rustdoc-args = ["--html-in-header", ".cargo/registry/src/github.com-1ecc6299db9ec823/curve25519-dalek-0.13.2/rustdoc-include-katex-header.html"]
@@ -73,7 +76,7 @@ u32_backend = []
 # The u64 backend uses u64s with u128 products.
 u64_backend = []
 # The SIMD backend uses parallel formulas, using either AVX2 or AVX512-IFMA.
-simd_backend = ["nightly", "u64_backend", "packed_simd"]
+simd_backend = ["nightly", "u64_backend", "crate:packed_simd"]
 # Old name for the SIMD backend, preserved for compatibility
 avx2_backend = ["simd_backend"]
 
