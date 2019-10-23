@@ -44,8 +44,6 @@ extern crate packed_simd;
 extern crate byteorder;
 extern crate clear_on_drop;
 pub extern crate digest;
-#[cfg(feature = "failure")]
-extern crate failure;
 extern crate rand_core;
 #[cfg(all(test, feature = "stage2_build"))]
 extern crate rand_os;

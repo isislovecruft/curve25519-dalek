@@ -17,9 +17,6 @@ extern crate subtle;
 #[cfg(all(feature = "nightly", feature = "packed_simd"))]
 extern crate packed_simd;
 
-#[cfg(feature = "failure")]
-extern crate failure;
-
 use std::env;
 use std::fs::File;
 use std::io::Write;
