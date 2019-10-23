@@ -17,6 +17,9 @@ extern crate subtle;
 #[cfg(all(feature = "nightly", feature = "packed_simd"))]
 extern crate packed_simd;
 
+#[cfg(feature = "failure")]
+extern crate failure;
+
 use std::env;
 use std::fs::File;
 use std::io::Write;
@@ -41,6 +44,8 @@ mod macros;
 mod constants;
 #[path = "src/edwards.rs"]
 mod edwards;
+#[path = "src/errors.rs"]
+mod errors;
 #[path = "src/montgomery.rs"]
 mod montgomery;
 #[path = "src/ristretto.rs"]

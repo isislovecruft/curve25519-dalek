@@ -51,6 +51,7 @@ clear_on_drop = "=0.2.3"
 subtle = { version = "2", default-features = false }
 serde = { version = "1.0", default-features = false, optional = true }
 packed_simd = { version = "0.3.0", features = ["into_bits"], optional = true }
+failure = { version = "0.1", optional = true }
 
 [build-dependencies]
 rand_core = { version = "0.3.0", default-features = false }
@@ -60,6 +61,7 @@ clear_on_drop = "=0.2.3"
 subtle = { version = "2", default-features = false }
 serde = { version = "1.0", default-features = false, optional = true }
 packed_simd = { version = "0.3.0", features = ["into_bits"], optional = true }
+failure = { version = "0.1", optional = true }
 
 [features]
 nightly = ["subtle/nightly", "clear_on_drop/nightly"]
