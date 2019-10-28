@@ -521,4 +521,22 @@ mod test {
         let P = &constants::ED25519_BASEPOINT_TABLE * &Scalar::from(8475983829u64);
         doubling_test_helper(P);
     }
+
+    #[test]
+    fn cached_point_identity_from_extended() {
+        use constants;
+
+        let extended_identity = ExtendedPoint::identity();
+        let cached_identity = CachedPoint::from(extended_identity);
+
+        println!("{:?}", cached_identity);
+        println!("{:?}", CachedPoint::identity());
+
+        let edwards_identity: edwards::EdwardsPoint = extended_identity.into();
+        let cached_identity_doubled = &extended_identity + &cached_identity;
+        let extended_identity_doubled = extended_identity.double();
+
+        assert!(edwards_identity == edwards::EdwardsPoint::identity());
+        assert!(cached_identity_doubled == extended_identity_doubled);
+    }
 }
