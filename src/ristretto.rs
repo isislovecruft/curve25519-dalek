@@ -233,6 +233,12 @@ impl TryFrom<&[u8]> for CompressedRistretto {
     }
 }
 
+impl From<[u8; 32]> for CompressedRistretto {
+    fn from(bytes: [u8; 32]) -> Self {
+        CompressedRistretto(bytes)
+    }
+}
+
 impl CompressedRistretto {
     /// Copy the bytes of this `CompressedRistretto`.
     pub fn to_bytes(&self) -> [u8; 32] {

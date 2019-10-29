@@ -111,6 +111,12 @@ impl ValidityCheck for MontgomeryPoint {
     }
 }
 
+impl From<[u8; 32]> for MontgomeryPoint {
+    fn from(bytes: [u8; 32]) -> Self {
+        MontgomeryPoint(bytes)
+    }
+}
+
 impl TryFrom<&[u8]> for MontgomeryPoint {
     type Error = CurveError;
 

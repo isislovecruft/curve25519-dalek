@@ -330,6 +330,12 @@ impl Default for CompressedEdwardsY {
     }
 }
 
+impl From<[u8; 32]> for CompressedEdwardsY {
+    fn from(bytes: [u8; 32]) -> Self {
+        CompressedEdwardsY(bytes)
+    }
+}
+
 impl TryFrom<&[u8]> for CompressedEdwardsY {
     type Error = CurveError;
 

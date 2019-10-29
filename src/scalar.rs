@@ -140,6 +140,7 @@
 
 use core::borrow::Borrow;
 use core::cmp::{Eq, PartialEq};
+use core::convert::TryFrom;
 use core::fmt::Debug;
 use core::iter::{Product, Sum};
 use core::ops::Index;
@@ -147,6 +148,8 @@ use core::ops::Neg;
 use core::ops::{Add, AddAssign};
 use core::ops::{Mul, MulAssign};
 use core::ops::{Sub, SubAssign};
+
+use errors::{CurveError, InternalError};
 
 #[allow(unused_imports)]
 use prelude::*;
@@ -242,11 +245,7 @@ impl Scalar {
     /// require specific bit-patterns when performing scalar
     /// multiplication.
     pub fn from_bits(bytes: [u8; 32]) -> Scalar {
-        let mut s = Scalar{bytes: bytes};
-        // Ensure that s < 2^255 by masking the high bit
-        s.bytes[31] &= 0b0111_1111;
-
-        s
+        Scalar::from(bytes)
     }
 }
 
@@ -456,6 +455,33 @@ where
 impl Default for Scalar {
     fn default() -> Scalar {
         Scalar::zero()
+    }
+}
+
+impl TryFrom<&[u8]> for Scalar {
+    type Error = CurveError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() != 32 {
+            return Err(CurveError(
+                InternalError::BytesLengthError{name: "Scalar", length: 32}));
+        }
+
+        let mut s_bytes = [0x00u8; 32];
+        s_bytes.copy_from_slice(bytes);
+
+        Ok(Scalar::from(s_bytes))
+    }
+}
+
+impl From<[u8; 32]> for Scalar {
+    fn from(bytes: [u8; 32]) -> Self {
+        let mut s = Scalar{bytes: bytes};
+
+        // Ensure that s < 2^255 by masking the high bit
+        s.bytes[31] &= 0b0111_1111;
+
+        s
     }
 }
 
