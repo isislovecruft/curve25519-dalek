@@ -36,6 +36,7 @@ name = "dalek_benchmarks"
 harness = false
 
 [dependencies]
+curve25519-dalek-scalar = { version = "1", default-features = false, path = "./curve25519-dalek-scalar" }
 rand_core = { version = "0.5", default-features = false }
 byteorder = { version = "^1.2.3", default-features = false, features = ["i128"] }
 digest = { version = "0.8", default-features = false }
@@ -47,13 +48,13 @@ zeroize = { version = "1", default-features = false }
 [features]
 nightly = ["subtle/nightly"]
 default = ["std", "u64_backend"]
-std = ["alloc", "subtle/std", "rand_core/std"]
-alloc = ["zeroize/alloc"]
+std = ["alloc", "curve25519-dalek-scalar/std", "subtle/std", "rand_core/std"]
+alloc = ["curve25519-dalek-scalar/alloc", "zeroize/alloc"]
 
 # The u32 backend uses u32s with u64 products.
-u32_backend = []
+u32_backend = ["curve25519-dalek-scalar/u32_backend"]
 # The u64 backend uses u64s with u128 products.
-u64_backend = []
+u64_backend = ["curve25519-dalek-scalar/u64_backend"]
 # The SIMD backend uses parallel formulas, using either AVX2 or AVX512-IFMA.
 simd_backend = ["nightly", "u64_backend", "packed_simd"]
 # DEPRECATED: this is now an alias for `simd_backend` and may be removed

@@ -54,6 +54,10 @@ extern crate bincode;
 #[cfg(feature = "serde")]
 extern crate serde;
 
+// External crates for better backend reusability.
+extern crate curve25519_dalek_scalar;
+
+
 // Internal macros. Must come first!
 #[macro_use]
 pub(crate) mod macros;
