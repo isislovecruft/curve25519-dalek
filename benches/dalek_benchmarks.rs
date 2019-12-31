@@ -13,7 +13,12 @@ use criterion::Criterion;
 extern crate curve25519_dalek;
 
 use curve25519_dalek::constants;
+use curve25519_dalek::edwards::EdwardsBasepointTableRadix32;
+use curve25519_dalek::edwards::EdwardsBasepointTableRadix64;
+use curve25519_dalek::edwards::EdwardsBasepointTableRadix128;
+use curve25519_dalek::edwards::EdwardsBasepointTableRadix256;
 use curve25519_dalek::scalar::Scalar;
+use curve25519_dalek::traits::BasepointTable;
 
 static BATCH_SIZES: [usize; 5] = [1, 2, 4, 8, 16];
 static MULTISCALAR_SIZES: [usize; 13] = [1, 2, 4, 8, 16, 32, 64, 128, 256, 384, 512, 768, 1024];
@@ -35,11 +40,43 @@ mod edwards_benches {
         });
     }
 
-    fn consttime_fixed_base_scalar_mul(c: &mut Criterion) {
+    fn consttime_fixed_base_scalar_mul_radix_16(c: &mut Criterion) {
         let B = &constants::ED25519_BASEPOINT_TABLE;
         let s = Scalar::from(897987897u64).invert();
-        c.bench_function("Constant-time fixed-base scalar mul", move |b| {
+        c.bench_function("Constant-time fixed-base radix-16 scalar mul", move |b| {
             b.iter(|| B * &s)
+        });
+    }
+
+    fn consttime_fixed_base_scalar_mul_radix_32(c: &mut Criterion) {
+        let B = EdwardsBasepointTableRadix32::create(&constants::ED25519_BASEPOINT_POINT);
+        let s = Scalar::from(897987897u64).invert();
+        c.bench_function("Constant-time fixed-base radix-32 scalar mul", move |b| {
+            b.iter(|| &B * &s)
+        });
+    }
+
+    fn consttime_fixed_base_scalar_mul_radix_64(c: &mut Criterion) {
+        let B = EdwardsBasepointTableRadix64::create(&constants::ED25519_BASEPOINT_POINT);
+        let s = Scalar::from(897987897u64).invert();
+        c.bench_function("Constant-time fixed-base radix-64 scalar mul", move |b| {
+            b.iter(|| &B * &s)
+        });
+    }
+
+    fn consttime_fixed_base_scalar_mul_radix_128(c: &mut Criterion) {
+        let B = EdwardsBasepointTableRadix128::create(&constants::ED25519_BASEPOINT_POINT);
+        let s = Scalar::from(897987897u64).invert();
+        c.bench_function("Constant-time fixed-base radix-128 scalar mul", move |b| {
+            b.iter(|| &B * &s)
+        });
+    }
+
+    fn consttime_fixed_base_scalar_mul_radix_256(c: &mut Criterion) {
+        let B = EdwardsBasepointTableRadix256::create(&constants::ED25519_BASEPOINT_POINT);
+        let s = Scalar::from(897987897u64).invert();
+        c.bench_function("Constant-time fixed-base radix-256 scalar mul", move |b| {
+            b.iter(|| &B * &s)
         });
     }
 
@@ -69,7 +106,11 @@ mod edwards_benches {
         targets =
         compress,
         decompress,
-        consttime_fixed_base_scalar_mul,
+        consttime_fixed_base_scalar_mul_radix_16,
+        consttime_fixed_base_scalar_mul_radix_32,
+        consttime_fixed_base_scalar_mul_radix_64,
+        consttime_fixed_base_scalar_mul_radix_128,
+        consttime_fixed_base_scalar_mul_radix_256,
         consttime_variable_base_scalar_mul,
         vartime_double_base_scalar_mul,
     }
