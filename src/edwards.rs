@@ -748,6 +748,138 @@ impl EdwardsPoint {
     }
 }
 
+/// A precomputed table of multiples of a basepoint, for accelerating
+/// fixed-base scalar multiplication.  One table, for the Ed25519
+/// basepoint, is provided in the `constants` module.
+///
+/// The basepoint tables are reasonably large, so they should probably be boxed.
+#[derive(Clone)]
+pub struct EdwardsBasepointTable(pub(crate) [LookupTableRadix16<AffineNielsPoint>; 32]);
+
+impl BasepointTable for EdwardsBasepointTable {
+    type Point = EdwardsPoint;
+
+    /// Create a table of precomputed multiples of `basepoint`.
+    fn create(basepoint: &EdwardsPoint) -> EdwardsBasepointTable {
+        // XXX use init_with
+        let mut table = EdwardsBasepointTable([LookupTableRadix16::default(); 32]);
+        let mut P = *basepoint;
+        for i in 0..32 {
+            // P = (2w)^i * B
+            table.0[i] = LookupTableRadix16::from(&P);
+            P = P.mul_by_pow_2(4 + 4);
+        }
+        table
+    }
+
+    /// Get the basepoint for this table as an `EdwardsPoint`.
+    fn basepoint(&self) -> EdwardsPoint {
+        // self.0[0].select(1) = 1*(16^2)^0*B
+        // but as an `AffineNielsPoint`, so add identity to convert to extended.
+        (&<EdwardsPoint>::identity() + &self.0[0].select(1)).to_extended()
+    }
+
+    /// The computation uses Pippenger's algorithm, as described for the
+    /// specific case of radix-16 on page 13 of the Ed25519 paper.
+    ///
+    /// # Piggenger's Algorithm Generalised
+    ///
+    /// Write the scalar \\(a\\) in radix-\\(w\\), where \\(w\\) is a power of
+    /// 2, with coefficients in \\([\frac{-w}{2},\frac{w}{2})\\), i.e.,
+    /// $$
+    ///     a = a\_0 + a\_1 w\^1 + \cdots + a\_{x} w\^{x},
+    /// $$
+    /// with
+    /// $$
+    ///     \frac{-w}{2} \leq a_i < \frac{w}{2}, \cdots, \frac{-w}{2} \leq a\_{x} \leq \frac{w}{2}
+    /// $$
+    /// and the number of additions, \\(x\\), is given by \\(x = \lceil \frac{256}{w} \rceil\\).
+    /// Then
+    /// $$
+    ///     a B = a\_0 B + a\_1 w\^1 B + \cdots + a\_{x-1} w\^{x-1} B.
+    /// $$
+    /// Grouping even and odd coefficients gives
+    /// $$
+    /// \begin{aligned}
+    ///     a B = \quad a\_0 w\^0 B +& a\_2 w\^2 B + \cdots + a\_{x-2} w\^{x-2} B    \\\\
+    ///               + a\_1 w\^1 B +& a\_3 w\^3 B + \cdots + a\_{x-1} w\^{x-1} B    \\\\
+    ///         = \quad(a\_0 w\^0 B +& a\_2 w\^2 B + \cdots + a\_{x-2} w\^{x-2} B)   \\\\
+    ///             + w(a\_1 w\^0 B +& a\_3 w\^2 B + \cdots + a\_{x-1} w\^{x-2} B).  \\\\
+    /// \end{aligned}
+    /// $$
+    /// For each \\(i = 0 \ldots 31\\), we create a lookup table of
+    /// $$
+    /// [w\^{2i} B, \ldots, \frac{w}{2}\cdotw\^{2i} B],
+    /// $$
+    /// and use it to select \\( y \cdot w\^{2i} \cdot B \\) in constant time.
+    ///
+    /// The radix-\\(w\\) representation requires that the scalar is bounded
+    /// by \\(2\^{255}\\), which is always the case.
+    ///
+    /// The above algorithm is trivially generalised to other powers-of-2 radices.
+    fn basepoint_mul(&self, scalar: &Scalar) -> EdwardsPoint {
+        let a = scalar.to_radix_2w(4);
+
+        let tables = &self.0;
+        let mut P = <EdwardsPoint>::identity();
+
+        for i in (0..64).filter(|x| x % 2 == 1) {
+            P = (&P + &tables[i/2].select(a[i])).to_extended();
+        }
+
+        P = P.mul_by_pow_2(4);
+
+        for i in (0..64).filter(|x| x % 2 == 0) {
+            P = (&P + &tables[i/2].select(a[i])).to_extended();
+        }
+
+        P
+    }
+}
+
+impl<'a, 'b> Mul<&'b Scalar> for &'a EdwardsBasepointTable {
+    type Output = EdwardsPoint;
+
+    /// Construct an `EdwardsPoint` from a `Scalar` \\(a\\) by
+    /// computing the multiple \\(aB\\) of this basepoint \\(B\\).
+    fn mul(self, scalar: &'b Scalar) -> EdwardsPoint {
+        // delegate to a private function so that its documentation appears in internal docs
+        self.basepoint_mul(scalar)
+    }
+}
+
+impl<'a, 'b> Mul<&'a EdwardsBasepointTable> for &'b Scalar {
+    type Output = EdwardsPoint;
+
+    /// Construct an `EdwardsPoint` from a `Scalar` \\(a\\) by
+    /// computing the multiple \\(aB\\) of this basepoint \\(B\\).
+    fn mul(self, basepoint_table: &'a EdwardsBasepointTable) -> EdwardsPoint {
+        basepoint_table * self
+    }
+}
+
+impl Debug for EdwardsBasepointTable {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "{:?}([\n", stringify!(EdwardsBasepointTable))?;
+        for i in 0..32 {
+            write!(f, "\t{:?},\n", &self.0[i])?;
+        }
+        write!(f, "])")
+    }
+}
+
+// ------------------------------------------------------------------------
+// Dynamically-sized Basepoint Tables
+// ------------------------------------------------------------------------
+
+/// A type-alias for [`EdwardsBasepointTable`] because the latter is
+/// used as a constructor in the `constants` module.
+//
+// Same as for `LookupTableRadix16`, we have to define `EdwardsBasepointTable`
+// first, because it's used as a constructor, and then provide a type alias for
+// it.
+pub(crate) type EdwardsBasepointTableRadix16 = EdwardsBasepointTable;
+
 macro_rules! impl_basepoint_table {
     (Name = $name:ident, LookupTable = $table:ident, Point = $point:ty, Radix = $radix:expr, Additions = $adds:expr) => {
 
@@ -762,6 +894,7 @@ macro_rules! impl_basepoint_table {
 ///
 /// * [`EdwardsBasepointTableRadix16`]: 30KB, 64A
 ///   (this is the default size, and is used for [`ED25519_BASEPOINT_TABLE`])
+/// * [`EdwardsBasepointTableRadix32`]: 60KB, 52A
 /// * [`EdwardsBasepointTableRadix64`]: 120KB, 43A
 /// * [`EdwardsBasepointTableRadix128`]: 240KB, 37A
 /// * [`EdwardsBasepointTableRadix256`]: 480KB, 33A
@@ -807,7 +940,7 @@ impl BasepointTable for $name {
         (&<$point>::identity() + &self.0[0].select(1)).to_extended()
     }
 
-    /// The computation uses Pippeneger's algorithm, as described for the
+    /// The computation uses Pippenger's algorithm, as described for the
     /// specific case of radix-16 on page 13 of the Ed25519 paper.
     ///
     /// # Piggenger's Algorithm Generalised
@@ -899,19 +1032,159 @@ impl Debug for $name {
 }} // End macro_rules! impl_basepoint_table
 
 // The number of additions required is ceil(256/w) where w is the radix representation.
-impl_basepoint_table! {Name = EdwardsBasepointTable, LookupTable = LookupTableRadix16, Point = EdwardsPoint, Radix = 4, Additions = 64}
 impl_basepoint_table! {Name = EdwardsBasepointTableRadix32, LookupTable = LookupTableRadix32, Point = EdwardsPoint, Radix = 5, Additions = 52}
 impl_basepoint_table! {Name = EdwardsBasepointTableRadix64, LookupTable = LookupTableRadix64, Point = EdwardsPoint, Radix = 6, Additions = 43}
 impl_basepoint_table! {Name = EdwardsBasepointTableRadix128, LookupTable = LookupTableRadix128, Point = EdwardsPoint, Radix = 7, Additions = 37}
 impl_basepoint_table! {Name = EdwardsBasepointTableRadix256, LookupTable = LookupTableRadix256, Point = EdwardsPoint, Radix = 8, Additions = 33}
 
-/// A type-alias for [`EdwardsBasepointTable`] because the latter is
-/// used as a constructor in the `constants` module.
-//
-// Same as for `LookupTableRadix16`, we have to define `EdwardsBasepointTable`
-// first, because it's used as a constructor, and then provide a type alias for
-// it.
-pub type EdwardsBasepointTableRadix16 = EdwardsBasepointTable;
+/// A dynamically-sized basepoint lookup table.
+///
+/// Increasing the size of the table roughly doubles the memory footprint, at
+/// the benefit of saving some additions when performing a fixed-base
+/// constant-time scalar multiplication.
+///
+/// The sizes for the tables and the number of additions required for one scalar
+/// multiplication are as follows:
+///
+/// * [`EdwardsBasepointTableRadix16`]: 30KB, 64A
+///   (this is the default size, and is used for [`ED25519_BASEPOINT_TABLE`])
+/// * [`EdwardsBasepointTableRadix32`]: 60KB, 52A
+/// * [`EdwardsBasepointTableRadix64`]: 120KB, 43A
+/// * [`EdwardsBasepointTableRadix128`]: 240KB, 37A
+/// * [`EdwardsBasepointTableRadix256`]: 480KB, 33A
+///
+/// # Why 33 additions for radix-256?
+///
+/// Normally, the radix-256 tables would allow for only 32 additions per scalar
+/// multiplication.  However, due to the fact that standardised definitions of
+/// legacy protocols—such as x25519—require allowing unreduced 255-bit scalar
+/// invariants, when converting such an unreduced scalar's representation to
+/// radix-\\(2^{8}\\), we cannot guarantee the carry bit will fit in the last
+/// coefficient (the coefficients are `i8`s).  When, \\(w\\), the power-of-2 of
+/// the radix, is \\(w < 8\\), we can fold the final carry onto the last
+/// coefficient, \\(d\\), because \\(d < 2^{w/2}\\), so
+/// $$
+///     d + carry \cdot 2^{w} = d + 1 \cdot 2^{w} < 2^{w+1} < 2^{8}
+/// $$
+/// When \\(w = 8\\), we can't fit \\(carry \cdot 2^{w}\\) into an `i8`, so we
+/// add the carry bit onto an additional coefficient.
+///
+/// # Example
+///
+/// ```rust
+/// # fn do_test() -> Result<(), ()> {
+/// use std::boxed::Box;
+///
+/// use curve25519_dalek::constants::ED25519_DYNAMIC_BASEPOINT_TABLE;
+/// use curve25519_dalek::edwards::EdwardsPoint;
+/// use curve25519_dalek::scalar::Scalar;
+///
+/// let table_30kb = Box::new(ED25519_DYNAMIC_BASEPOINT_TABLE);
+/// let x: Scalar = Scalar::one();
+/// let P1: EdwardsPoint = &x * &*table_30kb;
+///
+/// let table_60kb = Box::new(table_30kb.upsize()?);
+/// drop(table_30kb);
+/// // This computation will be slightly faster than the last.
+/// let P2: EdwardsPoint = &x * &*table_60kb;
+///
+/// let table_120kb = Box::new(table_60kb.upsize()?);
+/// drop(table_60kb);
+/// // Again, slightly faster.
+/// let P3: EdwardsPoint = &x * &*table_120kb;
+///
+/// // We can also downsize the tables to decrease their memory footprint at the
+/// // cost of slower scalar multiplications.
+/// let table_60kb = Box::new(table_120kb.downsize()?);
+/// drop(table_120kb);
+///
+/// assert_eq!(P1.compress(), P2.compress());
+/// assert_eq!(P2.compress(), P3.compress());
+/// #
+/// # Ok(())
+/// # } fn main() { do_test(); }
+/// ```
+pub enum EdwardsDynamicBasepointTable {
+    Radix16(EdwardsBasepointTableRadix16),
+    Radix32(EdwardsBasepointTableRadix32),
+    Radix64(EdwardsBasepointTableRadix64),
+    Radix128(EdwardsBasepointTableRadix128),
+    Radix256(EdwardsBasepointTableRadix256),
+}
+
+impl EdwardsDynamicBasepointTable {
+    /// Approximately double the size of this basepoint lookup table to gain a
+    /// speed increase in scalar multiplications.
+    pub fn upsize(&self) -> Result<EdwardsDynamicBasepointTable, ()> {
+        match self {
+            EdwardsDynamicBasepointTable::Radix16(x)  =>
+                Ok(EdwardsDynamicBasepointTable::Radix32(EdwardsBasepointTableRadix32::from(x))),
+            EdwardsDynamicBasepointTable::Radix32(x)  =>
+                Ok(EdwardsDynamicBasepointTable::Radix64(EdwardsBasepointTableRadix64::from(x))),
+            EdwardsDynamicBasepointTable::Radix64(x)  =>
+                Ok(EdwardsDynamicBasepointTable::Radix128(EdwardsBasepointTableRadix128::from(x))),
+            EdwardsDynamicBasepointTable::Radix128(x) =>
+                Ok(EdwardsDynamicBasepointTable::Radix256(EdwardsBasepointTableRadix256::from(x))),
+            EdwardsDynamicBasepointTable::Radix256(_) =>
+                Err(()),
+        }
+    }
+
+    /// Approximately halve the size of this basepoint lookup table to save
+    /// memory at the cost of slower scalar multiplications.
+    pub fn downsize(&self) -> Result<EdwardsDynamicBasepointTable, ()> {
+        match self {
+            EdwardsDynamicBasepointTable::Radix16(_)  =>
+                Err(()),
+            EdwardsDynamicBasepointTable::Radix32(x)  =>
+                Ok(EdwardsDynamicBasepointTable::Radix16(EdwardsBasepointTableRadix16::from(x))),
+            EdwardsDynamicBasepointTable::Radix64(x)  =>
+                Ok(EdwardsDynamicBasepointTable::Radix32(EdwardsBasepointTableRadix32::from(x))),
+            EdwardsDynamicBasepointTable::Radix128(x) =>
+                Ok(EdwardsDynamicBasepointTable::Radix64(EdwardsBasepointTableRadix64::from(x))),
+            EdwardsDynamicBasepointTable::Radix256(x) =>
+                Ok(EdwardsDynamicBasepointTable::Radix128(EdwardsBasepointTableRadix128::from(x))),
+        }
+    }
+}
+
+impl<'a, 'b> Mul<&'b Scalar> for &'a EdwardsDynamicBasepointTable {
+    type Output = EdwardsPoint;
+
+    /// Construct an `EdwardsPoint` from a `Scalar` \\(a\\) by
+    /// computing the multiple \\(aB\\) of this basepoint \\(B\\).
+    fn mul(self, scalar: &'b Scalar) -> EdwardsPoint {
+        match self {
+            EdwardsDynamicBasepointTable::Radix16(x)  => x.basepoint_mul(scalar),
+            EdwardsDynamicBasepointTable::Radix32(x)  => x.basepoint_mul(scalar),
+            EdwardsDynamicBasepointTable::Radix64(x)  => x.basepoint_mul(scalar),
+            EdwardsDynamicBasepointTable::Radix128(x) => x.basepoint_mul(scalar),
+            EdwardsDynamicBasepointTable::Radix256(x) => x.basepoint_mul(scalar),
+        }
+    }
+}
+
+impl<'a, 'b> Mul<&'a EdwardsDynamicBasepointTable> for &'b Scalar {
+    type Output = EdwardsPoint;
+
+    /// Construct an `EdwardsPoint` from a `Scalar` \\(a\\) by
+    /// computing the multiple \\(aB\\) of this basepoint \\(B\\).
+    fn mul(self, basepoint_table: &'a EdwardsDynamicBasepointTable) -> EdwardsPoint {
+        basepoint_table * self
+    }
+}
+
+impl Debug for EdwardsDynamicBasepointTable {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        match self {
+            EdwardsDynamicBasepointTable::Radix16(x)  => write!(f, "{:?}", x),
+            EdwardsDynamicBasepointTable::Radix32(x)  => write!(f, "{:?}", x),
+            EdwardsDynamicBasepointTable::Radix64(x)  => write!(f, "{:?}", x),
+            EdwardsDynamicBasepointTable::Radix128(x) => write!(f, "{:?}", x),
+            EdwardsDynamicBasepointTable::Radix256(x) => write!(f, "{:?}", x),
+        }
+    }
+}
 
 macro_rules! impl_basepoint_table_conversions {
     (LHS = $lhs:ty, RHS = $rhs:ty) => {

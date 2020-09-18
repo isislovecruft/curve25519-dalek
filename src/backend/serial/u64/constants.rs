@@ -13,7 +13,7 @@
 use backend::serial::curve_models::AffineNielsPoint;
 use backend::serial::u64::field::FieldElement51;
 use backend::serial::u64::scalar::Scalar52;
-use edwards::{EdwardsBasepointTable, EdwardsPoint};
+use edwards::{EdwardsBasepointTable, EdwardsDynamicBasepointTable, EdwardsPoint};
 use window::{LookupTable, NafLookupTable8};
 
 /// The value of minus one, equal to `-&FieldElement::one()`
@@ -303,6 +303,9 @@ pub const EIGHT_TORSION_INNER_DOC_HIDDEN: [EdwardsPoint; 8] = [
         ]),
     },
 ];
+
+/// Variable-size table containing precomputed multiples of the Ed25519 basepoint \\(B = (x, 4/5)\\).
+pub const ED25519_DYNAMIC_BASEPOINT_TABLE: EdwardsDynamicBasepointTable = EdwardsDynamicBasepointTable::Radix16(ED25519_BASEPOINT_TABLE_INNER_DOC_HIDDEN);
 
 /// Table containing precomputed multiples of the Ed25519 basepoint \\(B = (x, 4/5)\\).
 pub const ED25519_BASEPOINT_TABLE: EdwardsBasepointTable = ED25519_BASEPOINT_TABLE_INNER_DOC_HIDDEN;
